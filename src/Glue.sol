@@ -7,9 +7,11 @@ interface IERC20 {
 }
 /// @title Glue
 /// contract for pulling ERC20 tokens to other users on a certain intervals
+
 contract Glue {
     uint256 public constant NO_END_TIME = 0;
     mapping(address => mapping(bytes32 => uint256)) public nextPulls;
+
     event NewPull(
         address indexed sender, address indexed token, address indexed to, uint256 amount, uint48 interval, uint48 end
     );
@@ -23,6 +25,7 @@ contract Glue {
     /// @param amount the amount to pull
     /// @param interval the interval between different pulls
     /// @param end optional end time of the pulls
+
     function pull(address from, address token, address to, uint256 amount, uint48 interval, uint48 end) external {
         bytes32 id = keccak256(abi.encodePacked(from, token, to, amount, interval, end));
         uint256 nextPull = nextPulls[from][id];
@@ -36,9 +39,10 @@ contract Glue {
     /// @notice approve a new pull on a certain interval
     /// @param token the token to pull
     /// @param to the address to forward the tokens
-    /// @param amount the amount to pull   
+    /// @param amount the amount to pull
     /// @param interval the interval between different pulls
     /// @param end optional end time of the pulls
+
     function approvePull(address token, address to, uint256 amount, uint48 interval, uint48 end) external {
         bytes32 id = keccak256(abi.encodePacked(msg.sender, token, to, amount, interval, end));
         require(nextPulls[msg.sender][id] == 0, "pull-already-approved");

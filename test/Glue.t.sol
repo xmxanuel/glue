@@ -87,7 +87,7 @@ contract GlueTest is Test {
     function testEndPull() public {
         (address alice, address bob, uint256 amount, uint48 interval, uint48 end) = testPull();
         bytes32 id = keccak256(abi.encodePacked(bob, address(erc20), alice, amount, interval, end));
-        assertTrue(glue.nextPulls(bob, id) > 0 );
+        assertTrue(glue.nextPulls(bob, id) > 0);
         // prank bob
         vm.startPrank(bob);
         glue.endPull(address(erc20), alice, amount, interval, end);
