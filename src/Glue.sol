@@ -13,11 +13,24 @@ contract Glue {
     mapping(address => mapping(bytes32 => uint256)) public nextPulls;
 
     event NewPull(
-        address indexed sender, address indexed token, address indexed to, uint256 amount, uint48 interval, uint48 end
+        bytes32 indexed id, address indexed sender, address token, address indexed to, uint256 amount, uint48 interval, uint48 end
     );
-    event EndPull(
-        address indexed sender, address indexed token, address indexed to, uint256 amount, uint48 interval, uint48 end
-    );
+    event Pull(bytes32 indexed id);
+    event EndPull(bytes32 indexed id);
+
+    /// @notice approve a new pull on a certain interval
+    /// @param token the token to pull
+    /// @param to the address to forward the tokens
+    /// @param amount the amount to pull
+    /// @param interval the interval between different pulls
+    /// @param end optional end time of the pulls
+    function approvePull(address token, address to, uint256 amount, uint48 interval, uint48 end) external {
+        bytes32 id = keccak256(abi.encodePacked(msg.sender, token, to, amount, interval, end));
+        require(nextPulls[msg.sender][id] == 0, "pull-already-approved");
+        nextPulls[msg.sender][id] = block.timestamp;
+        emit NewPull(id, msg.sender, token, to, amount, interval, end);
+    }
+
     /// @notice pull tokens from an Ethereum address to another one
     /// @param from the address to pull from
     /// @param token the token to pull
@@ -25,7 +38,6 @@ contract Glue {
     /// @param amount the amount to pull
     /// @param interval the interval between different pulls
     /// @param end optional end time of the pulls
-
     function pull(address from, address token, address to, uint256 amount, uint48 interval, uint48 end) external {
         bytes32 id = keccak256(abi.encodePacked(from, token, to, amount, interval, end));
         uint256 nextPull = nextPulls[from][id];
@@ -35,19 +47,7 @@ contract Glue {
         nextPulls[from][id] = block.timestamp + interval;
         IERC20(token).transferFrom(from, address(this), amount);
         IERC20(token).transfer(to, amount);
-    }
-    /// @notice approve a new pull on a certain interval
-    /// @param token the token to pull
-    /// @param to the address to forward the tokens
-    /// @param amount the amount to pull
-    /// @param interval the interval between different pulls
-    /// @param end optional end time of the pulls
-
-    function approvePull(address token, address to, uint256 amount, uint48 interval, uint48 end) external {
-        bytes32 id = keccak256(abi.encodePacked(msg.sender, token, to, amount, interval, end));
-        require(nextPulls[msg.sender][id] == 0, "pull-already-approved");
-        nextPulls[msg.sender][id] = block.timestamp;
-        emit NewPull(msg.sender, token, to, amount, interval, end);
+        emit Pull(id);
     }
 
     /// @notice end a pull
@@ -60,6 +60,6 @@ contract Glue {
         bytes32 id = keccak256(abi.encodePacked(msg.sender, token, to, amount, interval, end));
         require(nextPulls[msg.sender][id] != 0, "pull-not-exists");
         nextPulls[msg.sender][id] = 0;
-        emit EndPull(msg.sender, token, to, amount, interval, end);
+        emit EndPull(id);
     }
 }
