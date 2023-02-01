@@ -17,9 +17,11 @@ contract MintableER20 is ERC20 {
 contract GlueTest is Test {
     Glue public glue;
     MintableER20 public erc20;
+    MintableER20 public feeToken;
 
     function setUp() public {
-        glue = new Glue();
+        feeToken = new MintableER20("FeeToken", "FT");
+        glue = new Glue(address(feeToken));
         erc20 = new MintableER20("Test", "TST");
         vm.warp(123);
     }
@@ -29,13 +31,17 @@ contract GlueTest is Test {
         uint256 amount = 100;
         uint48 interval = 1 days;
         uint48 end = 0;
-        glue.approvePull(address(erc20), alice, amount, interval, end);
+        uint256 fee = 0;
+        glue.approvePull(address(erc20), alice, amount, interval, end, 0, true);
 
-        bytes32 id = keccak256(abi.encodePacked(address(this), address(erc20), alice, amount, interval, end));
+        bytes32 id = keccak256(abi.encodePacked(address(this), address(erc20), alice, amount, interval, end, fee, true));
         assertEq(glue.nextPulls(address(this), id), block.timestamp);
     }
 
-    function testPull() public returns (address alice, address bob, uint256 amount, uint48 interval, uint48 end) {
+    function _testPull(uint256 fee, bool feeType)
+        internal
+        returns (address alice, address bob, uint256 amount, uint48 interval, uint48 end)
+    {
         alice = address(0x1);
         bob = address(0x2);
 
@@ -46,16 +52,24 @@ contract GlueTest is Test {
         // prank bob
         vm.startPrank(bob);
         erc20.approve(address(glue), type(uint256).max);
-        glue.approvePull(address(erc20), alice, amount, interval, end);
+        feeToken.approve(address(glue), type(uint256).max);
+        glue.approvePull(address(erc20), alice, amount, interval, end, fee, feeType);
 
-        bytes32 id = keccak256(abi.encodePacked(bob, address(erc20), alice, amount, interval, end));
+        bytes32 id = keccak256(abi.encodePacked(bob, address(erc20), alice, amount, interval, end, fee, feeType));
         assertEq(glue.nextPulls(bob, id), block.timestamp, "failed-approve-pull");
         erc20.mint(bob, amount);
+        if (feeType) erc20.mint(bob, fee);
+        else feeToken.mint(bob, fee);
+
         vm.stopPrank();
 
         assertEq(erc20.balanceOf(alice), 0);
-        glue.pull(bob, address(erc20), alice, amount, interval, end);
+        glue.pull(bob, address(erc20), alice, amount, interval, end, fee, feeType);
         assertEq(erc20.balanceOf(alice), amount);
+    }
+
+    function testPull() public returns (address alice, address bob, uint256 amount, uint48 interval, uint48 end) {
+        return _testPull(0, true);
     }
 
     function testMultiplePulls() public {
@@ -63,7 +77,7 @@ contract GlueTest is Test {
         // more funds
         erc20.mint(address(bob), amount);
         vm.warp(block.timestamp + 1 days);
-        glue.pull(bob, address(erc20), alice, amount, interval, end);
+        glue.pull(bob, address(erc20), alice, amount, interval, end, 0, true);
         assertEq(erc20.balanceOf(alice), amount * 2);
     }
 
@@ -73,7 +87,7 @@ contract GlueTest is Test {
         erc20.mint(address(bob), amount - 1);
         vm.warp(block.timestamp + 1 days);
         vm.expectRevert("ERC20: transfer amount exceeds balance");
-        glue.pull(bob, address(erc20), alice, amount, interval, end);
+        glue.pull(bob, address(erc20), alice, amount, interval, end, 0, true);
         assertEq(erc20.balanceOf(alice), amount);
     }
 
@@ -81,16 +95,30 @@ contract GlueTest is Test {
         (address alice, address bob, uint256 amount, uint48 interval, uint48 end) = testPull();
         // modify pull data
         vm.expectRevert("pull-not-approved");
-        glue.pull(bob, address(erc20), alice, amount + 1, interval, end);
+        glue.pull(bob, address(erc20), alice, amount + 1, interval, end, 0, true);
     }
 
     function testEndPull() public {
         (address alice, address bob, uint256 amount, uint48 interval, uint48 end) = testPull();
-        bytes32 id = keccak256(abi.encodePacked(bob, address(erc20), alice, amount, interval, end));
+        bytes32 id = keccak256(abi.encodePacked(bob, address(erc20), alice, amount, interval, end, uint256(0), true));
         assertTrue(glue.nextPulls(bob, id) > 0);
         // prank bob
         vm.startPrank(bob);
-        glue.endPull(address(erc20), alice, amount, interval, end);
+        glue.endPull(address(erc20), alice, amount, interval, end, 0, true);
         assertEq(glue.nextPulls(bob, id), 0, "failed-end-pull");
+    }
+
+    function testFee() public {
+        uint256 fee = 10;
+        assertEq(erc20.balanceOf(address(this)), 0);
+        _testPull(fee, true);
+        assertEq(erc20.balanceOf(address(this)), fee);
+    }
+
+    function testFeeWithFeeToken() public {
+        uint256 fee = 10;
+        assertEq(erc20.balanceOf(address(this)), 0);
+        _testPull(fee, false);
+        assertEq(feeToken.balanceOf(address(this)), fee);
     }
 }
