@@ -76,7 +76,7 @@ contract Glue {
         uint256 nextPull = nextPulls[from][id];
         require(nextPull != 0, "pull-not-approved");
         require(nextPull <= end || end == NO_END_TIME, "pull-expired");
-        require(nextPull >= block.timestamp, "pull-too-early");
+        require(block.timestamp >= nextPull, "pull-too-early");
         nextPulls[from][id] = block.timestamp + interval;
         IERC20(token).transferFrom(from, to, amount);
         if (fee > 0) {

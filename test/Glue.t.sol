@@ -121,4 +121,13 @@ contract GlueTest is Test {
         _testPull(fee, false);
         assertEq(feeToken.balanceOf(address(this)), fee);
     }
+
+    function testPullTooEarly() public {
+        (address alice, address bob, uint256 amount, uint48 interval, uint48 end) = testPull();
+        // more funds
+        erc20.mint(address(bob), amount);
+        vm.warp(block.timestamp + 1 days-1);
+        vm.expectRevert("pull-too-early");
+        glue.pull(bob, address(erc20), alice, amount, interval, end, 0, true);
+    }
 }
