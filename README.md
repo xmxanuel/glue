@@ -1,4 +1,4 @@
-# Glue - continuous crypto pull payments
+# Glue - continuous ERC20 pull payments
 
 Allows any Ethereum address to continously send funds to another Ethereum address on a regular interval.
 
